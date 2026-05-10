@@ -4,6 +4,8 @@ param(
     [string]$Arg2,
     [int]$Limit = 25,
     [switch]$DryRun,
+    [Alias("D")]
+    [switch]$Divide,
     [switch]$Split
 )
 
@@ -281,36 +283,42 @@ function RestoreSplitRows($restoreRows, $label) {
         return
     }
 
-    Write-Host "Restaurando $($restoreRows.Count) sesiones $label en panes..."
-    $wtArgs = @("-w", "0")
-    $i = 0
+    $maxPanesPerTab = if ($Divide) { 4 } else { $restoreRows.Count }
+    $modeLabel = if ($Divide) { "en tabs de hasta $maxPanesPerTab panes" } else { "en panes" }
+    Write-Host "Restaurando $($restoreRows.Count) sesiones $label $modeLabel..."
 
-    foreach ($r in $restoreRows) {
-        $dir = if ($r.cwd -and (Test-Path -LiteralPath $r.cwd)) { $r.cwd } else { (Get-Location).Path }
-        $cmd = "Set-Location -LiteralPath $(PsQuote $dir); codex resume $($r.id)"
-        $launcher = WriteLauncher $r $dir
-        Write-Host "- $($r.title)"
+    for ($offset = 0; $offset -lt $restoreRows.Count; $offset += $maxPanesPerTab) {
+        $group = @($restoreRows | Select-Object -Skip $offset -First $maxPanesPerTab)
+        $tabNumber = [int]([Math]::Floor($offset / $maxPanesPerTab) + 1)
+        $wtArgs = @("-w", "0")
+        $i = 0
 
-        if ($i -eq 0) {
-            $wtArgs += @("new-tab", "--title", "cx-restore", "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
-        } else {
-            $orientation = if ($i % 2 -eq 1) { "-H" } else { "-V" }
-            $wtArgs += @(";", "split-pane", $orientation, "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
+        foreach ($r in $group) {
+            $dir = if ($r.cwd -and (Test-Path -LiteralPath $r.cwd)) { $r.cwd } else { (Get-Location).Path }
+            $cmd = "Set-Location -LiteralPath $(PsQuote $dir); codex resume $($r.id)"
+            $launcher = WriteLauncher $r $dir
+            Write-Host "- tab $tabNumber pane $($i + 1): $($r.title)"
+
+            if ($i -eq 0) {
+                $wtArgs += @("new-tab", "--title", "cx-restore-$tabNumber", "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
+            } else {
+                $orientation = if ($i % 2 -eq 1) { "-H" } else { "-V" }
+                $wtArgs += @(";", "split-pane", $orientation, "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
+            }
+
+            if ($DryRun) {
+                Write-Host "  $cmd"
+            }
+
+            $i++
         }
 
         if ($DryRun) {
-            Write-Host "  $cmd"
+            Write-Host "  wt $($wtArgs -join ' ')"
+        } else {
+            & wt.exe @wtArgs
         }
-
-        $i++
     }
-
-    if ($DryRun) {
-        Write-Host "  wt $($wtArgs -join ' ')"
-        return
-    }
-
-    & wt.exe @wtArgs
 }
 
 function RestoreRows($restoreRows, $label) {
@@ -318,6 +326,10 @@ function RestoreRows($restoreRows, $label) {
     if ($restoreRows.Count -eq 0) {
         Write-Host "No hay sesiones para restaurar."
         return
+    }
+
+    if ($Divide) {
+        $Split = $true
     }
 
     if ($Split) {

@@ -73,6 +73,7 @@ Most people only need:
 ```powershell
 cx list
 cx restore 10
+cx restore 7 -D
 cx restore 3 -Split
 cx restore 10 -DryRun
 ```
@@ -110,7 +111,18 @@ cx active
 
 `-DryRun` prints what would be opened without opening tabs.
 
-Use `-Split` to restore into panes inside one Windows Terminal tab:
+Use `-D` (division mode) to restore into split panes grouped by tabs:
+
+```powershell
+cx restore 7 -D
+cx restore 7 -D -DryRun
+```
+
+`cx restore 7 -D` opens the latest 7 sessions in Windows Terminal, grouped into tabs with up to 4 panes per tab.
+
+Example: 7 sessions becomes 2 tabs: one with 4 panes, one with 3 panes.
+
+Use `-Split` to force all restored sessions into panes inside one Windows Terminal tab:
 
 ```powershell
 cx restore 3 -Split
@@ -132,13 +144,19 @@ wt -w 0 new-tab ...
 
 If Windows Terminal is not available, it falls back to separate PowerShell windows.
 
-For pane layouts, use:
+For grouped pane layouts, use:
+
+```powershell
+cx restore 7 -D
+```
+
+`-D` requires Windows Terminal. It creates a fresh split layout for the restored sessions, max 4 panes per tab. It cannot read a previous Windows Terminal layout after a crash or reboot.
+
+For one single tab with all panes, use:
 
 ```powershell
 cx restore 3 -Split
 ```
-
-`-Split` requires Windows Terminal. It creates a fresh split layout for the restored sessions. It cannot read a previous Windows Terminal layout after a crash or reboot.
 
 ## Restore Order
 
