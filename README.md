@@ -1,8 +1,42 @@
 # cx commander
 
-Tiny PowerShell session commander for Codex CLI.
+Tiny Windows/PowerShell session commander for Codex CLI.
 
 `cx` reads local Codex session files from `~\.codex\sessions`, shows a clearer picker, lets you pin sessions that should survive reboots, and restores them with `codex resume <session_id>`.
+
+## Quick Start
+
+The easiest workflow is restoring the latest sessions:
+
+```powershell
+cx restore 10
+```
+
+That opens the latest 10 non-closed Codex sessions from `cx list`.
+
+Use any number:
+
+```powershell
+cx restore 1
+cx restore 3
+cx restore 10
+```
+
+The number is a quantity, not a range. `cx restore 10` means "restore the latest 10".
+
+Preview first without opening tabs:
+
+```powershell
+cx restore 10 -DryRun
+```
+
+Pinned sessions are optional. Use pins only when you want a curated restore list:
+
+```powershell
+cx pin
+cx active
+cx restore
+```
 
 ## Install
 
@@ -34,8 +68,17 @@ That directory is added to the user `PATH` if needed.
 
 ## Usage
 
+Most people only need:
+
 ```powershell
 cx list
+cx restore 10
+cx restore 10 -DryRun
+```
+
+Optional pinned workflow:
+
+```powershell
 cx active
 cx pin
 cx pin 3
@@ -52,16 +95,16 @@ cx close 3
 
 ## What restore does
 
-`cx restore` restores pinned sessions. These are the sessions shown by:
-
-```powershell
-cx active
-```
-
 `cx restore 10` restores the latest 10 non-closed sessions from:
 
 ```powershell
 cx list
+```
+
+`cx restore` without a number restores pinned sessions. These are the sessions shown by:
+
+```powershell
+cx active
 ```
 
 `-DryRun` prints what would be opened without opening tabs.
@@ -83,6 +126,16 @@ Pinned sessions restore in pin order, based on the timestamp stored when you run
 Recent restores, such as `cx restore 10`, restore by latest activity, matching `cx list`.
 
 Windows Terminal does not expose the previous tab order to this script, so `cx` cannot recover the exact tab order from before a crash unless the sessions were pinned in that order.
+
+## Platform
+
+Supported today:
+
+```text
+Windows + PowerShell + Codex CLI
+```
+
+macOS is not supported by the installer or tab restore yet. The core idea can be ported because Codex also stores sessions under `~/.codex`, but this repo currently uses Windows paths, `%APPDATA%`, `%LOCALAPPDATA%`, and Windows Terminal (`wt.exe`) for tabs.
 
 ## State
 
