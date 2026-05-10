@@ -3,7 +3,8 @@ param(
     [string]$Arg1,
     [string]$Arg2,
     [int]$Limit = 25,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Split
 )
 
 $ErrorActionPreference = "Stop"
@@ -266,10 +267,61 @@ function WriteLauncher($row, $dir) {
     $path
 }
 
+function RestoreSplitRows($restoreRows, $label) {
+    $restoreRows = @($restoreRows)
+    if ($restoreRows.Count -eq 0) {
+        Write-Host "No hay sesiones para restaurar."
+        return
+    }
+
+    if (-not (Get-Command wt.exe -ErrorAction SilentlyContinue)) {
+        Write-Host "El modo -Split requiere Windows Terminal (wt.exe). Uso restore normal."
+        $script:Split = $false
+        RestoreRows $restoreRows $label
+        return
+    }
+
+    Write-Host "Restaurando $($restoreRows.Count) sesiones $label en panes..."
+    $wtArgs = @("-w", "0")
+    $i = 0
+
+    foreach ($r in $restoreRows) {
+        $dir = if ($r.cwd -and (Test-Path -LiteralPath $r.cwd)) { $r.cwd } else { (Get-Location).Path }
+        $cmd = "Set-Location -LiteralPath $(PsQuote $dir); codex resume $($r.id)"
+        $launcher = WriteLauncher $r $dir
+        Write-Host "- $($r.title)"
+
+        if ($i -eq 0) {
+            $wtArgs += @("new-tab", "--title", "cx-restore", "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
+        } else {
+            $orientation = if ($i % 2 -eq 1) { "-H" } else { "-V" }
+            $wtArgs += @(";", "split-pane", $orientation, "pwsh.exe", "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $launcher)
+        }
+
+        if ($DryRun) {
+            Write-Host "  $cmd"
+        }
+
+        $i++
+    }
+
+    if ($DryRun) {
+        Write-Host "  wt $($wtArgs -join ' ')"
+        return
+    }
+
+    & wt.exe @wtArgs
+}
+
 function RestoreRows($restoreRows, $label) {
     $restoreRows = @($restoreRows)
     if ($restoreRows.Count -eq 0) {
         Write-Host "No hay sesiones para restaurar."
+        return
+    }
+
+    if ($Split) {
+        RestoreSplitRows $restoreRows $label
         return
     }
 

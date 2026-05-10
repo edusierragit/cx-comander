@@ -73,6 +73,7 @@ Most people only need:
 ```powershell
 cx list
 cx restore 10
+cx restore 3 -Split
 cx restore 10 -DryRun
 ```
 
@@ -109,6 +110,18 @@ cx active
 
 `-DryRun` prints what would be opened without opening tabs.
 
+Use `-Split` to restore into panes inside one Windows Terminal tab:
+
+```powershell
+cx restore 3 -Split
+cx restore -Split
+cx restore 3 -Split -DryRun
+```
+
+`cx restore 3 -Split` opens the latest 3 sessions in one tab split into panes.
+
+`cx restore -Split` opens pinned sessions in one tab split into panes.
+
 ## Tabs
 
 When Windows Terminal is available, `cx restore` opens sessions in tabs using:
@@ -119,6 +132,14 @@ wt -w 0 new-tab ...
 
 If Windows Terminal is not available, it falls back to separate PowerShell windows.
 
+For pane layouts, use:
+
+```powershell
+cx restore 3 -Split
+```
+
+`-Split` requires Windows Terminal. It creates a fresh split layout for the restored sessions. It cannot read a previous Windows Terminal layout after a crash or reboot.
+
 ## Restore Order
 
 Pinned sessions restore in pin order, based on the timestamp stored when you run `cx pin`.
@@ -126,6 +147,8 @@ Pinned sessions restore in pin order, based on the timestamp stored when you run
 Recent restores, such as `cx restore 10`, restore by latest activity, matching `cx list`.
 
 Windows Terminal does not expose the previous tab order to this script, so `cx` cannot recover the exact tab order from before a crash unless the sessions were pinned in that order.
+
+Windows Terminal also does not expose the previous split-pane layout to this script. `cx restore 3 -Split` creates a new deterministic split layout instead.
 
 ## Platform
 
