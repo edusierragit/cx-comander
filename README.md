@@ -162,7 +162,9 @@ cx restore 3 -Split
 
 Pinned sessions restore in pin order, based on the timestamp stored when you run `cx pin`.
 
-Recent restores, such as `cx restore 10`, restore by latest activity, matching `cx list`.
+Recent restores, such as `cx restore 10`, restore by latest global recency, matching `cx list`.
+
+Global recency is based on the latest Codex session activity plus sessions opened by `cx` itself. When `cx restore` or `cx resume` opens a session, cx records that timestamp in `~\.codex\memories\cx-state.json` so future restores can prioritize sessions you actually restored with cx.
 
 Windows Terminal does not expose the previous tab order to this script, so `cx` cannot recover the exact tab order from before a crash unless the sessions were pinned in that order.
 

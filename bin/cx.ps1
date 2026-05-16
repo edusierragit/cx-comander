@@ -71,10 +71,15 @@ function State {
         $json = Get-Content $OldStateFile -Raw | ConvertFrom-Json
         return (ToHash $json)
     }
-    return @{ active = @{}; closed = @{}; notes = @{} }
+    return @{ active = @{}; closed = @{}; notes = @{}; opened = @{} }
 }
 
 function Save($st) {
+    foreach ($key in @("active", "closed", "notes", "opened")) {
+        if (-not (Has $st $key)) {
+            $st[$key] = @{}
+        }
+    }
     New-Item -ItemType Directory -Force -Path (Split-Path $StateFile) | Out-Null
     $json = JsonReady $st | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText($StateFile, $json, (New-Object System.Text.UTF8Encoding $false))
@@ -146,6 +151,14 @@ function Rows($search = "", $mode = $Cmd) {
         $last = if ($hh.ts -and $hh.ts -gt $f.LastWriteTime) { $hh.ts } else { $f.LastWriteTime }
         $project = if ($m.cwd) { Split-Path $m.cwd -Leaf } else { "sin-cwd" }
         $note = if (Has $st.notes $id) { [string]$st.notes[$id] } else { "" }
+        $openedInfo = MapValue $st.opened $id
+        $openedAtRaw = if ($openedInfo -and (MapValue $openedInfo "at")) { [string](MapValue $openedInfo "at") } else { "" }
+        if ($openedAtRaw) {
+            try {
+                $openedAt = [DateTime]::Parse($openedAtRaw)
+                if ($openedAt -gt $last) { $last = $openedAt }
+            } catch {}
+        }
         $activeInfo = MapValue $st.active $id
         $activeAt = if ($activeInfo -and (MapValue $activeInfo "at")) { [string](MapValue $activeInfo "at") } else { "" }
         $title = if ($note) { $note } elseif ($hh.first) { "${project}: $(Short $hh.first 70)" } else { "${project}: $($id.Substring(0,8))" }
@@ -197,6 +210,15 @@ function Pick($x) {
 function Pin($id) { $st = State; $st.active[$id] = @{ at = (Get-Date).ToString("o") }; if (Has $st.closed $id) { $st.closed.Remove($id) }; Save $st }
 function Close($id) { $st = State; if (Has $st.active $id) { $st.active.Remove($id) }; $st.closed[$id] = @{ at = (Get-Date).ToString("o") }; Save $st }
 function Note($id, $txt) { $st = State; $st.notes[$id] = $txt; Save $st }
+function MarkOpened($ids) {
+    $st = State
+    $now = (Get-Date).ToString("o")
+    foreach ($id in @($ids)) {
+        if (-not $id) { continue }
+        $st.opened[$id] = @{ at = $now }
+    }
+    Save $st
+}
 
 function NormPath($path) {
     if (-not $path) { return "" }
@@ -286,6 +308,9 @@ function RestoreSplitRows($restoreRows, $label) {
     $maxPanesPerTab = if ($Divide) { 4 } else { $restoreRows.Count }
     $modeLabel = if ($Divide) { "en tabs de hasta $maxPanesPerTab panes" } else { "en panes" }
     Write-Host "Restaurando $($restoreRows.Count) sesiones $label $modeLabel..."
+    if (-not $DryRun) {
+        MarkOpened @($restoreRows | ForEach-Object { $_.id })
+    }
 
     for ($offset = 0; $offset -lt $restoreRows.Count; $offset += $maxPanesPerTab) {
         $group = @($restoreRows | Select-Object -Skip $offset -First $maxPanesPerTab)
@@ -338,6 +363,9 @@ function RestoreRows($restoreRows, $label) {
     }
 
     Write-Host "Restaurando $($restoreRows.Count) sesiones $label..."
+    if (-not $DryRun) {
+        MarkOpened @($restoreRows | ForEach-Object { $_.id })
+    }
     foreach ($r in $restoreRows) {
         $dir = if ($r.cwd -and (Test-Path -LiteralPath $r.cwd)) { $r.cwd } else { (Get-Location).Path }
         $cmd = "Set-Location -LiteralPath $(PsQuote $dir); codex resume $($r.id)"
@@ -381,7 +409,7 @@ function RestoreActive($count = $null) {
         $oldLimit = $script:Limit
         $script:Limit = [int]$count
         try {
-            RestoreRows (Rows "" "recent") "recientes"
+            RestoreRows (Rows "" "recent") "recientes globales"
         } finally {
             $script:Limit = $oldLimit
         }
@@ -409,7 +437,7 @@ switch ($Cmd) {
             if ($x -match "^u\s+(\S+)$") { Close (Pick $Matches[1]); continue }
             if ($x -match "^c\s+(\S+)$") { Close (Pick $Matches[1]); continue }
             if ($x -match "^n\s+(\S+)\s+(.+)$") { Note (Pick $Matches[1]) $Matches[2]; continue }
-            if ($x) { $id = Pick $x; Pin $id; codex resume $id; break }
+            if ($x) { $id = Pick $x; Pin $id; MarkOpened $id; codex resume $id; break }
         }
     }
     "list" { Show (Rows $Arg1) }
@@ -419,7 +447,7 @@ switch ($Cmd) {
     "unpin" { if ($Arg1) { Close (Pick $Arg1) } else { UnpinCurrent } }
     "close" { Close (Pick $Arg1) }
     "note" { Note (Pick $Arg1) $Arg2 }
-    "resume" { $id = Pick $Arg1; Pin $id; codex resume $id }
+    "resume" { $id = Pick $Arg1; Pin $id; MarkOpened $id; codex resume $id }
     "restore" { RestoreActive $Arg1 }
     default { Show (Rows $Cmd) }
 }
