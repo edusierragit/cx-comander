@@ -62,24 +62,32 @@ function JsonReady($x) {
     $x
 }
 
-function State {
-    if (Test-Path $StateFile) {
-        $json = Get-Content $StateFile -Raw | ConvertFrom-Json
-        return (ToHash $json)
+function EnsureState($st) {
+    if ($null -eq $st) {
+        $st = @{}
     }
-    if (Test-Path $OldStateFile) {
-        $json = Get-Content $OldStateFile -Raw | ConvertFrom-Json
-        return (ToHash $json)
-    }
-    return @{ active = @{}; closed = @{}; notes = @{}; opened = @{} }
-}
-
-function Save($st) {
     foreach ($key in @("active", "closed", "notes", "opened")) {
-        if (-not (Has $st $key)) {
+        if (-not (Has $st $key) -or $null -eq $st[$key]) {
             $st[$key] = @{}
         }
     }
+    $st
+}
+
+function State {
+    if (Test-Path $StateFile) {
+        $json = Get-Content $StateFile -Raw | ConvertFrom-Json
+        return EnsureState (ToHash $json)
+    }
+    if (Test-Path $OldStateFile) {
+        $json = Get-Content $OldStateFile -Raw | ConvertFrom-Json
+        return EnsureState (ToHash $json)
+    }
+    return EnsureState @{}
+}
+
+function Save($st) {
+    $st = EnsureState $st
     New-Item -ItemType Directory -Force -Path (Split-Path $StateFile) | Out-Null
     $json = JsonReady $st | ConvertTo-Json -Depth 5
     [IO.File]::WriteAllText($StateFile, $json, (New-Object System.Text.UTF8Encoding $false))
